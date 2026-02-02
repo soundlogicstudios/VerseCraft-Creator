@@ -1,9 +1,9 @@
 {
   "name": "versecraft-creator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
-  "description": "VerseCraft Creator Phase 1: normalize + audit VerseCraft story JSONs (CLI core).",
+  "description": "VerseCraft Creator Phase 1 Web Viewer (no-build) + CLI validator.",
   "scripts": {
     "validate": "node scripts/validate_story.mjs"
   },

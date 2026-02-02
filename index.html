@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VerseCraft Creator — Phase 1 Viewer</title>
+  <link rel="stylesheet" href="./src/web/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="title">VerseCraft Creator</div>
+      <div class="subtitle">Phase 1 — Story JSON Viewer (Normalize + Audit)</div>
+    </div>
+    <div class="actions">
+      <label class="filebtn">
+        <input id="fileInput" type="file" accept=".json,application/json" />
+        Choose JSON
+      </label>
+      <button id="btnSample" type="button" class="btn">Load Sample</button>
+      <button id="btnClear" type="button" class="btn secondary">Clear</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel left">
+      <div class="panel-hd">Import</div>
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Drop JSON here">
+        <div class="dz-title">Drop a story JSON here</div>
+        <div class="dz-sub">or click “Choose JSON”</div>
+      </div>
+
+      <div class="panel-hd mt">Audit</div>
+      <div id="summary" class="summary muted">No story loaded.</div>
+      <div id="issues" class="issues"></div>
+    </section>
+
+    <section class="panel mid">
+      <div class="panel-hd">Scenes</div>
+      <div id="scenesList" class="list muted">Load a story to see scenes.</div>
+    </section>
+
+    <section class="panel right">
+      <div class="panel-hd">Scene Detail</div>
+      <div id="sceneDetail" class="detail muted">Select a scene.</div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>Tip: GitHub Pages needs an <code>index.html</code> at repo root. This project is “no-build”.</div>
+  </footer>
+
+  <script type="module" src="./src/web/app.js"></script>
+</body>
+</html>
