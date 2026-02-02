@@ -285,6 +285,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
   gap: 6px;
 }
 .input, .select {
+  min-width: 0;
+
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -311,4 +313,38 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
   color: var(--muted);
   font-size: 12px;
   margin-top: 2px;
+}
+
+/* Lock global page scroll; rely on internal panel scrollers */
+body.vc-lockscroll {
+  overflow: hidden;
+  height: 100vh;
+}
+main.layout {
+  height: calc(100vh - 64px - 46px); /* topbar + footer approximations */
+  overflow: hidden;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* critical for nested scrolling */
+}
+.panel .list,
+.panel .detail {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.panel.left {
+  min-height: 0;
+}
+.panel.left .issues {
+  overflow: auto;
+  max-height: 45vh;
+}
+
+@media (max-width: 700px) {
+  .choice-row {
+    grid-template-columns: 1fr;
+  }
 }

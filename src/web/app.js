@@ -4,7 +4,7 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.4";
+const APP_VERSION = "0.1.4a";
 const APP_PHASE = "Phase 1.4";
 
 const $ = (sel) => document.querySelector(sel);
@@ -226,7 +226,6 @@ function renderSceneDetail() {
         <div class="editor-title">Scene Text</div>
         <div class="editor-actions">
           <button id="btnAddChoice" class="btn tiny" type="button">Add Choice</button>
-          <button id="btnDeleteScene" class="btn tiny danger" type="button">Delete Scene</button>
           <button id="btnReaudit" class="btn tiny" type="button">Re-audit</button>
         </div>
       </div>
@@ -274,13 +273,6 @@ function renderSceneDetail() {
     renderSceneDetail();
   });
 
-  // Delete scene
-  const btnDeleteScene = el.sceneDetail.querySelector("#btnDeleteScene");
-  if (btnDeleteScene) btnDeleteScene.addEventListener("click", () => {
-    deleteScene(id);
-    renderScenesList();
-    renderSceneDetail();
-  });
 
   const btnReaudit = el.sceneDetail.querySelector("#btnReaudit");
   if (btnReaudit) btnReaudit.addEventListener("click", () => updateAuditAndPanels());
@@ -682,6 +674,9 @@ try {
   const metaEl = document.querySelector("#appMeta");
   if (metaEl) metaEl.textContent = `${APP_PHASE} • v${APP_VERSION}`;
 } catch (_) {}
+
+// Lock global scroll so panels scroll independently
+try { document.body.classList.add("vc-lockscroll"); } catch (_) {}
 
 // Initial render
 clearAll();
