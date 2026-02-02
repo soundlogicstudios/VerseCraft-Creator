@@ -115,6 +115,25 @@ function renderScenesList() {
   }
 }
 
+
+function goToScene(targetId) {
+  const story = STATE.story;
+  const id = String(targetId ?? "").trim();
+  if (!story || !id) return;
+
+  if (!story.scenes?.[id]) {
+    alert(`Target scene not found: ${id}`);
+    return;
+  }
+
+  STATE.activeSceneId = id;
+  renderScenesList();
+  renderSceneDetail();
+
+  // Scroll to top of detail for quick reading
+  try { el.sceneDetail.scrollTop = 0; } catch (_) {}
+}
+
 function renderSceneDetail() {
   const story = STATE.story;
   const id = STATE.activeSceneId;
@@ -128,14 +147,42 @@ function renderSceneDetail() {
   const node = story.scenes[id];
   const text = String(node?.text ?? "");
   const opts = Array.isArray(node?.options) ? node.options : [];
-  const first4 = [0,1,2,3].map((i) => opts[i] ?? null);
+  const first4 = [0, 1, 2, 3].map((i) => opts[i] ?? null);
 
-  const choicesHtml = first4.map((opt, idx) => {
-    if (!opt) return `<div class="choice"><div class="lbl">(empty)</div><div class="to">pill ${idx+1}</div></div>`;
-    const label = String(opt.label ?? "").trim() || `(no label)`;
-    const to = String(opt.to ?? "").trim() || `(no target)`;
-    return `<div class="choice"><div class="lbl">${escapeHtml(label)}</div><div class="to">to: ${escapeHtml(to)} • pill ${idx+1}</div></div>`;
-  }).join("");
+  const choicesHtml = first4
+    .map((opt, idx) => {
+      const pill = idx + 1;
+
+      if (!opt) {
+        return `
+          <button class="choice choice-btn" type="button" data-to="" disabled aria-disabled="true">
+            <div class="lbl">(empty)</div>
+            <div class="to">pill ${pill}</div>
+          </button>
+        `;
+      }
+
+      const label = String(opt.label ?? "").trim() || `(no label)`;
+      const to = String(opt.to ?? "").trim();
+
+      const exists = to && !!story.scenes?.[to];
+      const disabled = !to || !exists;
+
+      const toLabel = !to
+        ? "(no target)"
+        : exists
+          ? to
+          : `${to} (missing)`;
+
+      return `
+        <button class="choice choice-btn" type="button" data-to="${escapeHtml(to)}"
+          ${disabled ? 'disabled aria-disabled="true"' : 'aria-disabled="false"'}>
+          <div class="lbl">${escapeHtml(label)}</div>
+          <div class="to">to: ${escapeHtml(toLabel)} • pill ${pill}</div>
+        </button>
+      `;
+    })
+    .join("");
 
   el.sceneDetail.innerHTML = `
     <div class="sid">${escapeHtml(id)} ${id === story.start ? '<span class="badge info">START</span>' : ""}</div>
@@ -143,7 +190,15 @@ function renderSceneDetail() {
     <div class="text">${escapeHtml(text)}</div>
     <div class="choices">${choicesHtml}</div>
   `;
+
+  // Bind choice navigation (buttons)
+  el.sceneDetail.querySelectorAll(".choice-btn").forEach((btn) => {
+    const to = btn.getAttribute("data-to") || "";
+    if (!to) return;
+    btn.addEventListener("click", () => goToScene(to));
+  });
 }
+
 
 function setStoryFromRaw(raw) {
   const normalized = normalize_story(raw);

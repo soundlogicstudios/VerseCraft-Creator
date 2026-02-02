@@ -188,3 +188,17 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
   .panel { min-height: auto; }
   .list, .detail { height: auto; max-height: 55vh; }
 }
+
+/* Make choice blocks clickable buttons without changing layout */
+.choice-btn {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.choice-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.choice-btn:hover:not(:disabled) {
+  border-color: rgba(255,255,255,0.22);
+}
