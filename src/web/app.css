@@ -258,3 +258,57 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
 .btn.tiny.secondary {
   opacity: 0.9;
 }
+
+.choice-editor {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+.choice-row {
+  display: grid;
+  grid-template-columns: 1fr 170px 92px;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(0,0,0,0.10);
+}
+.choice-row .slot {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.input, .select {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.16);
+  color: var(--text);
+  padding: 8px 10px;
+  font: 600 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  outline: none;
+}
+.select { font-weight: 650; }
+.input:focus, .select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(106,167,255,0.18);
+}
+.btn.danger {
+  background: rgba(255,107,107,0.12);
+  border-color: rgba(255,107,107,0.35);
+}
+.btn.danger:hover {
+  border-color: rgba(255,107,107,0.55);
+}
+.choice-row .hint {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}

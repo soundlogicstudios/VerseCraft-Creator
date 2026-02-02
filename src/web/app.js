@@ -4,8 +4,8 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.3";
-const APP_PHASE = "Phase 1.3";
+const APP_VERSION = "0.1.4";
+const APP_PHASE = "Phase 1.4";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -118,12 +118,25 @@ function renderScenesList() {
     item.innerHTML = `
       <div class="id">${escapeHtml(id)}</div>
       <div class="meta">choices: ${opts.length} ${id === story.start ? " • start" : ""}</div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+        <button class="btn tiny danger jsDeleteSceneItem" type="button">Delete</button>
+      </div>
     `;
     item.addEventListener("click", () => {
       STATE.activeSceneId = id;
       renderScenesList();
       renderSceneDetail();
     });
+    const delBtn = item.querySelector('.jsDeleteSceneItem');
+    if (delBtn) {
+      delBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        deleteScene(id);
+        renderScenesList();
+        renderSceneDetail();
+      });
+    }
     el.scenesList.appendChild(item);
   }
 }
@@ -167,108 +180,173 @@ function renderSceneDetail() {
   const node = story.scenes[id];
   const text = String(node?.text ?? "");
   const opts = Array.isArray(node?.options) ? node.options : [];
-  const first4 = [0, 1, 2, 3].map((i) => opts[i] ?? null);
+  const ids = list_scene_ids(story);
 
-  const choicesHtml = first4
-    .map((opt, idx) => {
-      const pill = idx + 1;
+  // Ensure up to 4 editable slots (runtime constraint)
+  const slots = [0, 1, 2, 3].map((i) => opts[i] ?? null);
 
-      if (!opt) {
-        return `
-          <button class="choice choice-btn" type="button" data-to="" disabled aria-disabled="true">
-            <div class="lbl">(empty)</div>
-            <div class="to">pill ${pill}</div>
-          </button>
-        `;
-      }
+  const choiceRowsHtml = slots.map((opt, idx) => {
+    const label = opt ? String(opt.label ?? "").trim() : "";
+    const to = opt ? String(opt.to ?? "").trim() : "";
+    const exists = to ? !!story.scenes?.[to] : true;
 
-      const label = String(opt.label ?? "").trim() || `(no label)`;
-      const to = String(opt.to ?? "").trim();
+    const targetOptions = [
+      `<option value="">(no target)</option>`,
+      ...ids.map((sid) => `<option value="${escapeHtml(sid)}"${sid === to ? " selected" : ""}>${escapeHtml(sid)}</option>`),
+      `<option value="__NEW__">+ Create New Scene…</option>`
+    ].join("");
 
-      const exists = to && !!story.scenes?.[to];
-      const disabled = !to || !exists;
-
-      const toLabel = !to
-        ? "(no target)"
-        : exists
-          ? to
-          : `${to} (missing)`;
-
-      return `
-        <button class="choice choice-btn" type="button" data-to="${escapeHtml(to)}"
-          ${disabled ? 'disabled aria-disabled="true"' : 'aria-disabled="false"'}>
-          <div class="lbl">${escapeHtml(label)}</div>
-          <div class="to">to: ${escapeHtml(toLabel)} • pill ${pill}</div>
-        </button>
-      `;
-    })
-    .join("");
+    return `
+      <div class="choice-row" data-idx="${idx}">
+        <div class="field">
+          <div class="slot">Choice ${idx + 1} (pill ${idx + 1})</div>
+          <input class="input jsChoiceLabel" type="text" value="${escapeHtml(label)}" placeholder="Choice label (4–5 words max)" />
+        </div>
+        <div class="field">
+          <div class="slot">Target</div>
+          <select class="select jsChoiceTo">
+            ${targetOptions}
+          </select>
+        </div>
+        <div class="field">
+          <div class="slot">Actions</div>
+          <button class="btn tiny danger jsDeleteChoice" type="button" ${opt ? "" : "disabled"}>Delete</button>
+        </div>
+        ${to && !exists ? `<div class="hint">Warning: target scene "${escapeHtml(to)}" does not exist.</div>` : ""}
+      </div>
+    `;
+  }).join("");
 
   el.sceneDetail.innerHTML = `
     <div class="sid">${escapeHtml(id)} ${id === story.start ? '<span class="badge info">START</span>' : ""}</div>
-    <div class="small">Total choices: ${opts.length} (viewer shows first 4 pills)</div>
+    <div class="small">Total choices: ${opts.length} (editor supports 4 pills)</div>
 
     <div class="editor">
       <div class="editor-hd">
         <div class="editor-title">Scene Text</div>
         <div class="editor-actions">
           <button id="btnAddChoice" class="btn tiny" type="button">Add Choice</button>
-          <button id="btnAddSceneHere" class="btn tiny secondary" type="button">Add Scene</button>
+          <button id="btnDeleteScene" class="btn tiny danger" type="button">Delete Scene</button>
           <button id="btnReaudit" class="btn tiny" type="button">Re-audit</button>
         </div>
       </div>
       <textarea id="sceneTextEditor" class="textarea" spellcheck="true"></textarea>
       <div class="editor-foot">
-        <div class="hint">Edits update the in-memory story. Export/download comes later (Phase 2).</div>
+        <div class="hint">Edits update the in-memory story. Use “Download JSON” to export.</div>
       </div>
     </div>
 
-    <div class="panel-hd" style="margin-top:12px;border-radius:12px;">Choices</div>
-    <div class="choices">${choicesHtml}</div>
+    <div class="panel-hd" style="margin-top:12px;border-radius:12px;">Choices Editor</div>
+    <div class="choice-editor">
+      ${choiceRowsHtml}
+      <div class="muted" style="font-size:12px;">Tip: Select “+ Create New Scene…” to auto-create and link a new target.</div>
+    </div>
   `;
 
-  // Set initial textarea value without HTML escaping
+  // Set initial textarea value
   const ta = el.sceneDetail.querySelector("#sceneTextEditor");
   if (ta) ta.value = text;
 
-  // Bind choice navigation (buttons)
-  el.sceneDetail.querySelectorAll(".choice-btn").forEach((btn) => {
-    const to = btn.getAttribute("data-to") || "";
-    if (!to) return;
-    btn.addEventListener("click", () => goToScene(to));
-  });
-
-  // Bind editor: update story text in-place + refresh audit panels (debounced)
+  // Debounced audit refresh
   const debouncedAudit = debounce(() => updateAuditAndPanels(), 200);
 
+  // Text editor binding
   if (ta) {
     ta.addEventListener("input", () => {
-      // Update normalized story node text
       story.scenes[id].text = ta.value;
       debouncedAudit();
     });
   }
 
+  // Add Choice: if less than 4, adds a blank choice (no target yet)
   const btnAddChoice = el.sceneDetail.querySelector("#btnAddChoice");
   if (btnAddChoice) btnAddChoice.addEventListener("click", () => {
-    addChoiceAndScene();
-    // refresh lists/detail after structural change
+    const cur = story.scenes[id];
+    const curOpts = Array.isArray(cur.options) ? cur.options : [];
+    if (curOpts.length >= 4) {
+      alert("This scene already has 4 choices. Runtime only supports 4 pills.");
+      return;
+    }
+    curOpts.push({ label: "New Choice", to: "" });
+    cur.options = curOpts;
+    updateAuditAndPanels();
     renderScenesList();
     renderSceneDetail();
   });
 
-  const btnAddSceneHere = el.sceneDetail.querySelector("#btnAddSceneHere");
-  if (btnAddSceneHere) btnAddSceneHere.addEventListener("click", () => {
-    const newId = addScene();
-    if (newId) {
-      STATE.activeSceneId = newId;
-      renderScenesList();
-      renderSceneDetail();
-    }
+  // Delete scene
+  const btnDeleteScene = el.sceneDetail.querySelector("#btnDeleteScene");
+  if (btnDeleteScene) btnDeleteScene.addEventListener("click", () => {
+    deleteScene(id);
+    renderScenesList();
+    renderSceneDetail();
   });
 
   const btnReaudit = el.sceneDetail.querySelector("#btnReaudit");
   if (btnReaudit) btnReaudit.addEventListener("click", () => updateAuditAndPanels());
+
+  // Choice editor bindings
+  el.sceneDetail.querySelectorAll(".choice-row").forEach((row) => {
+    const idx = Number(row.getAttribute("data-idx"));
+    const inp = row.querySelector(".jsChoiceLabel");
+    const sel = row.querySelector(".jsChoiceTo");
+    const del = row.querySelector(".jsDeleteChoice");
+
+    const ensureOpt = () => {
+      const cur = story.scenes[id];
+      const curOpts = Array.isArray(cur.options) ? cur.options : [];
+      // Ensure option exists at idx
+      while (curOpts.length <= idx) curOpts.push({ label: "New Choice", to: "" });
+      cur.options = curOpts;
+      return curOpts[idx];
+    };
+
+    if (inp) {
+      inp.addEventListener("input", () => {
+        const opt = ensureOpt();
+        opt.label = inp.value;
+        debouncedAudit();
+        // scene list meta doesn't need immediate rerender
+      });
+    }
+
+    if (sel) {
+      sel.addEventListener("change", () => {
+        const v = String(sel.value || "").trim();
+        const opt = ensureOpt();
+
+        if (v === "__NEW__") {
+          const newId = addScene();
+          opt.to = newId || "";
+          updateAuditAndPanels();
+          renderScenesList();
+          renderSceneDetail();
+          return;
+        }
+
+        opt.to = v;
+        debouncedAudit();
+        // If the target exists, allow quick navigation by clicking the row (optional)
+      });
+    }
+
+    if (del) {
+      del.addEventListener("click", () => {
+        deleteChoice(id, idx);
+        renderScenesList();
+        renderSceneDetail();
+      });
+    }
+
+    // Optional: click row to jump to target if set + exists
+    row.addEventListener("dblclick", () => {
+      const cur = story.scenes[id];
+      const curOpts = Array.isArray(cur.options) ? cur.options : [];
+      const opt = curOpts[idx];
+      const to = String(opt?.to ?? "").trim();
+      if (to && story.scenes?.[to]) goToScene(to);
+    });
+  });
 }
 
 
@@ -415,6 +493,80 @@ function addScene({ linkFromSceneId = null, linkLabel = "New Choice" } = {}) {
 
   updateAuditAndPanels();
   return newId;
+}
+
+
+
+function confirmDanger(msg) {
+  return window.confirm(msg);
+}
+
+function deleteChoice(sceneId, index) {
+  if (!ensureStoryLoaded()) return;
+  const story = STATE.story;
+  const sid = String(sceneId ?? "").trim();
+  const idx = Number(index);
+  if (!story.scenes?.[sid]) return;
+  const node = story.scenes[sid];
+  const opts = Array.isArray(node.options) ? node.options : [];
+  if (!Number.isFinite(idx) || idx < 0 || idx >= opts.length) return;
+
+  opts.splice(idx, 1);
+  node.options = opts;
+
+  updateAuditAndPanels();
+}
+
+function deleteScene(sceneId) {
+  if (!ensureStoryLoaded()) return;
+  const story = STATE.story;
+  const sid = String(sceneId ?? "").trim();
+  if (!sid || !story.scenes?.[sid]) return;
+
+  const keys = Object.keys(story.scenes);
+  if (keys.length <= 1) {
+    alert("Cannot delete the last remaining scene.");
+    return;
+  }
+
+  // Safety: show how many inbound links point to this scene
+  let inbound = 0;
+  for (const [id, node] of Object.entries(story.scenes)) {
+    const opts = Array.isArray(node?.options) ? node.options : [];
+    for (const opt of opts) {
+      if (String(opt?.to ?? "").trim() === sid) inbound++;
+    }
+  }
+
+  const msg = inbound
+    ? `Delete scene ${sid}?\\n\\nWarning: ${inbound} choice(s) point to it. Those choices will be cleared.`
+    : `Delete scene ${sid}?`;
+
+  if (!confirmDanger(msg)) return;
+
+  // Remove references to this scene from all choices
+  for (const [id, node] of Object.entries(story.scenes)) {
+    const opts = Array.isArray(node?.options) ? node.options : [];
+    for (const opt of opts) {
+      if (String(opt?.to ?? "").trim() === sid) opt.to = "";
+    }
+    node.options = opts;
+  }
+
+  delete story.scenes[sid];
+
+  // Fix start if needed
+  if (String(story.start ?? "").trim() === sid || !story.scenes?.[story.start]) {
+    const first = Object.keys(story.scenes).sort((a,b)=>a.localeCompare(b,"en",{numeric:true}))[0];
+    story.start = first || "S01";
+  }
+
+  // Fix active scene if needed
+  if (STATE.activeSceneId === sid) {
+    STATE.activeSceneId = story.start;
+  }
+
+  updateAuditAndPanels();
 }
 
 function addChoiceAndScene() {
