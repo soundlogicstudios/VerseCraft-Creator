@@ -4,14 +4,20 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.4b";
-const APP_PHASE = "Phase 1.4";
+const APP_VERSION = "0.1.5";
+const APP_PHASE = "Phase 1.5";
 
 const $ = (sel) => document.querySelector(sel);
 
 const el = {
   fileInput: $("#fileInput"),
+  metaId: $("#metaId"),
+  metaTitle: $("#metaTitle"),
+  metaRoute: $("#metaRoute"),
+  metaSchema: $("#metaSchema"),
+  metaBlurb: $("#metaBlurb"),
   dropzone: $("#dropzone"),
+  btnNewTemplate: $("#btnNewTemplate"),
   btnSample: $("#btnSample"),
   btnExport: $("#btnExport"),
   btnAddScene: $("#btnAddScene"),
@@ -113,11 +119,13 @@ function renderScenesList() {
   for (const id of ids) {
     const node = story.scenes[id];
     const opts = Array.isArray(node?.options) ? node.options : [];
+    const stype = String(node?.type ?? "normal").toLowerCase();
+    const endingTag = stype.startsWith("ending") ? ` • ${stype}` : "";
     const item = document.createElement("div");
     item.className = "item" + (STATE.activeSceneId === id ? " active" : "");
     item.innerHTML = `
       <div class="id">${escapeHtml(id)}</div>
-      <div class="meta">choices: ${opts.length} ${id === story.start ? " • start" : ""}</div>
+      <div class="meta">choices: ${opts.length}${endingTag} ${id === story.start ? " • start" : ""}</div>
       <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
         <button class="btn tiny danger jsDeleteSceneItem" type="button">Delete</button>
       </div>
@@ -180,6 +188,8 @@ function renderSceneDetail() {
   const node = story.scenes[id];
   const text = String(node?.text ?? "");
   const opts = Array.isArray(node?.options) ? node.options : [];
+    const stype = String(node?.type ?? "normal").toLowerCase();
+    const endingTag = stype.startsWith("ending") ? ` • ${stype}` : "";
   const ids = list_scene_ids(story);
 
   // Ensure up to 4 editable slots (runtime constraint)
@@ -220,6 +230,13 @@ function renderSceneDetail() {
   el.sceneDetail.innerHTML = `
     <div class="sid">${escapeHtml(id)} ${id === story.start ? '<span class="badge info">START</span>' : ""}</div>
     <div class="small">Total choices: ${opts.length} (editor supports 4 pills)</div>
+    <div class="small">Scene type: <select id="sceneType" class="select" style="max-width:240px;display:inline-block;vertical-align:middle;">
+      <option value="normal">normal</option>
+      <option value="ending">ending</option>
+      <option value="ending_special">ending_special</option>
+      <option value="ending_bad">ending_bad</option>
+      <option value="ending_loop">ending_loop</option>
+    </select></div>
 
     <div class="editor">
       <div class="editor-hd">
@@ -248,6 +265,19 @@ function renderSceneDetail() {
 
   // Debounced audit refresh
   const debouncedAudit = debounce(() => updateAuditAndPanels(), 200);
+
+  // Scene type binding
+  const typeSel = el.sceneDetail.querySelector("#sceneType");
+  if (typeSel) {
+    typeSel.value = String(story.scenes[id].type ?? "normal");
+    typeSel.addEventListener("change", () => {
+      story.scenes[id].type = String(typeSel.value || "normal");
+      updateAuditAndPanels();
+      renderScenesList();
+      renderSceneDetail();
+    });
+  }
+
 
   // Text editor binding
   if (ta) {
@@ -382,6 +412,107 @@ function clearAll() {
   renderSceneDetail();
 }
 
+
+function ensureMetaDefaults(story) {
+  if (!story) return;
+  if (!story.meta || typeof story.meta !== "object") story.meta = {};
+  const m = story.meta;
+
+  if (!m.schema) m.schema = "versecraft.story.v1";
+  if (!m.id) m.id = "story";
+  if (!m.title) m.title = "Untitled Story";
+  if (!m.route) m.route = `story_${slugifyId(m.id)}`;
+  if (m.blurb == null) m.blurb = "";
+}
+
+function syncMetaUiFromStory() {
+  const story = STATE.story;
+  if (!story) return;
+
+  ensureMetaDefaults(story);
+  const m = story.meta;
+
+  if (el.metaId) el.metaId.value = String(m.id ?? "");
+  if (el.metaTitle) el.metaTitle.value = String(m.title ?? "");
+  if (el.metaRoute) el.metaRoute.value = String(m.route ?? "");
+  if (el.metaSchema) el.metaSchema.value = String(m.schema ?? "versecraft.story.v1");
+  if (el.metaBlurb) el.metaBlurb.value = String(m.blurb ?? "");
+}
+
+function bindMetaUi() {
+  const story = STATE.story;
+  if (!story) return;
+
+  const onChange = () => {
+    ensureMetaDefaults(story);
+    const m = story.meta;
+
+    if (el.metaId) m.id = slugifyId(el.metaId.value || "story");
+    if (el.metaTitle) m.title = String(el.metaTitle.value || "Untitled Story");
+    if (el.metaRoute) m.route = String(el.metaRoute.value || `story_${slugifyId(m.id)}`);
+    if (el.metaSchema) m.schema = String(el.metaSchema.value || "versecraft.story.v1");
+    if (el.metaBlurb) m.blurb = toAsciiSafe(el.metaBlurb.value || "");
+
+    syncMetaUiFromStory();
+  };
+
+  [el.metaId, el.metaTitle, el.metaRoute, el.metaSchema, el.metaBlurb].forEach((x) => {
+    if (!x) return;
+    x.addEventListener("input", debounce(onChange, 150));
+    x.addEventListener("change", onChange);
+  });
+}
+
+function newStoryTemplate() {
+  const id = slugifyId(prompt("Story Title ID (lowercase):", "cosmos") || "story");
+  const title = String(prompt("Story Title (display):", "Creation Of The Cosmos") || "Untitled Story");
+  const blurb = toAsciiSafe(String(prompt("Launcher blurb (ASCII-only):", "A short cosmic creation tale...") || ""));
+
+  const scenes = {};
+  for (let i = 1; i <= 10; i++) {
+    const sid = "S" + String(i).padStart(2, "0");
+    scenes[sid] = {
+      text: i === 1
+        ? `**${title}**\n\nWrite your opening scene here.\n\n**CHOICES**\n\nFIRST CHOICE — ...\n\nSECOND CHOICE — ...`
+        : `Scene ${sid} text...\n\n**CHOICES**\n\nFIRST CHOICE — ...\n\nSECOND CHOICE — ...`,
+      choices: [],
+      type: "normal"
+    };
+  }
+
+  scenes["S11"] = {
+    text: "Ending (Normal)\n\nWrap up this path.\n\n**CHOICES**\n\nRESTART — Return to the beginning.",
+    choices: [{ label: "Restart", to: "S01" }],
+    type: "ending"
+  };
+  scenes["S12"] = {
+    text: "Ending (Special)\n\nA rarer outcome.\n\n**CHOICES**\n\nRESTART — Return to the beginning.",
+    choices: [{ label: "Restart", to: "S01" }],
+    type: "ending_special"
+  };
+  scenes["S13"] = {
+    text: "Ending (Bad)\n\nA grim conclusion.\n\n**CHOICES**\n\nRESTART — Return to the beginning.",
+    choices: [{ label: "Restart", to: "S01" }],
+    type: "ending_bad"
+  };
+
+  scenes["S01"].choices = [
+    { label: "First Choice", to: "S02" },
+    { label: "Second Choice", to: "S03" }
+  ];
+  scenes["S02"].choices = [
+    { label: "Toward Ending", to: "S11" },
+    { label: "Continue", to: "S04" }
+  ];
+
+  return {
+    meta: { id, title, route: `story_${id}`, schema: "versecraft.story.v1", blurb },
+    start: "S01",
+    scenes
+  };
+}
+
+
 function sampleStory() {
   return {
     meta: { id: "sample", title: "Sample" },
@@ -403,12 +534,18 @@ function sampleStory() {
         ]
       },
       S03: {
-        text: "Your voice echoes. The air turns cold.\n\n(No choices here—this will warn as a dead end.)",
-        choices: []
+        text: "Your voice echoes. The air turns cold.\n\n**CHOICES**\n\nRESTART — You try again from the beginning.\n\nEND — You leave this run here.",
+        choices: [
+          { label: "Restart", to: "S01" },
+          { label: "End", to: "" }
+        ]
       },
       S04: {
-        text: "You step into light. Ending.",
-        choices: []
+        text: "You step into light. Ending.\n\n**CHOICES**\n\nRESTART — You try again from the beginning.\n\nEND — You leave this run here.",
+        choices: [
+          { label: "Restart", to: "S01" },
+          { label: "End", to: "" }
+        ]
       }
     }
   };
@@ -525,6 +662,8 @@ function deleteScene(sceneId) {
   let inbound = 0;
   for (const [id, node] of Object.entries(story.scenes)) {
     const opts = Array.isArray(node?.options) ? node.options : [];
+    const stype = String(node?.type ?? "normal").toLowerCase();
+    const endingTag = stype.startsWith("ending") ? ` • ${stype}` : "";
     for (const opt of opts) {
       if (String(opt?.to ?? "").trim() === sid) inbound++;
     }
@@ -539,6 +678,8 @@ function deleteScene(sceneId) {
   // Remove references to this scene from all choices
   for (const [id, node] of Object.entries(story.scenes)) {
     const opts = Array.isArray(node?.options) ? node.options : [];
+    const stype = String(node?.type ?? "normal").toLowerCase();
+    const endingTag = stype.startsWith("ending") ? ` • ${stype}` : "";
     for (const opt of opts) {
       if (String(opt?.to ?? "").trim() === sid) opt.to = "";
     }
@@ -572,6 +713,10 @@ function addChoiceAndScene() {
   if (newId) goToScene(newId);
 }
 
+function toAsciiSafe(s) {
+  return String(s ?? "").replace(/[^\x00-\x7F]/g, "");
+}
+
 function slugifyId(s) {
   return String(s ?? "")
     .trim()
@@ -600,15 +745,17 @@ function buildExportJson() {
   for (const [id, node] of Object.entries(scenes)) {
     const text = String(node?.text ?? "");
     const opts = Array.isArray(node?.options) ? node.options : [];
+    const stype = String(node?.type ?? "normal").toLowerCase();
+    const endingTag = stype.startsWith("ending") ? ` • ${stype}` : "";
     const choices = opts.map((o) => ({
       label: String(o?.label ?? "").trim() || "Continue",
       to: String(o?.to ?? "").trim()
     }));
-    scenesOut[id] = { text, choices };
+    scenesOut[id] = { text, choices, type: String(node?.type ?? "normal") };
   }
 
   return {
-    meta,
+    meta: (story.meta && typeof story.meta === "object") ? { ...story.meta } : meta,
     start: String(story.start ?? "S01").trim() || "S01",
     scenes: scenesOut
   };
@@ -638,16 +785,30 @@ function exportDownload() {
 }
 
 
+
+function bindButton(btn, handler) {
+  if (!btn) return;
+  // Bind both click and pointerup; some setups can miss click after drag/drop.
+  btn.addEventListener("click", (e) => handler(e));
+  btn.addEventListener("pointerup", (e) => {
+    try { e.preventDefault(); } catch (_) {}
+    handler(e);
+  }, { passive: false });
+}
+
+
 // Wire up UI events
+window.addEventListener("DOMContentLoaded", () => {
 el.fileInput.addEventListener("change", (e) => {
   const file = e.target.files?.[0];
   loadFile(file);
   e.target.value = "";
 });
 
-el.btnSample.addEventListener("click", () => setStoryFromRaw(sampleStory()));
-if (el.btnExport) el.btnExport.addEventListener("click", () => exportDownload());
-el.btnClear.addEventListener("click", () => clearAll());
+bindButton(el.btnNewTemplate, () => setStoryFromRaw(newStoryTemplate()));
+  bindButton(el.btnSample, () => setStoryFromRaw(sampleStory()));
+bindButton(el.btnExport, () => exportDownload());
+bindButton(el.btnClear, () => clearAll());
 
 ["dragenter", "dragover"].forEach((evt) => {
   el.dropzone.addEventListener(evt, (e) => {
@@ -676,6 +837,8 @@ try {
 } catch (_) {}
 
 // Lock global scroll so panels scroll independently
+
+});
 
 function applyLayoutSizing() {
   try {

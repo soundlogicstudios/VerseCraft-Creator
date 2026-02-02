@@ -378,3 +378,14 @@ main.layout{
   -webkit-overflow-scrolling: touch;
   padding-bottom: 12px;
 }
+
+.meta-form{
+  display:grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.08);
+}
+.meta-form .field{ display:flex; flex-direction:column; gap:6px; }
+.meta-form .slot{ color: var(--muted); font-size: 12px; }
