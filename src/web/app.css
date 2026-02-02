@@ -43,7 +43,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
 .brand .title { font-weight: 800; letter-spacing: 0.2px; }
 .brand .subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
-.actions { display: flex; gap: 10px; align-items: center; }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .filebtn input { display: none; }
 .filebtn, .btn {
   border: 1px solid var(--border);

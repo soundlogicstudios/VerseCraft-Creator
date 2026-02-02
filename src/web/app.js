@@ -10,6 +10,7 @@ const el = {
   fileInput: $("#fileInput"),
   dropzone: $("#dropzone"),
   btnSample: $("#btnSample"),
+  btnExport: $("#btnExport"),
   btnClear: $("#btnClear"),
   summary: $("#summary"),
   issues: $("#issues"),
@@ -319,6 +320,73 @@ function sampleStory() {
   };
 }
 
+
+function slugifyId(s) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "story";
+}
+
+function buildExportJson() {
+  const story = STATE.story;
+  if (!story) return null;
+
+  // Prefer meta from raw if present; otherwise create minimal meta
+  const rawMeta = (STATE.raw && typeof STATE.raw === "object") ? (STATE.raw.meta ?? null) : null;
+
+  const meta = rawMeta && typeof rawMeta === "object" ? { ...rawMeta } : {
+    id: slugifyId(STATE.raw?.meta?.id ?? "story"),
+    title: String(STATE.raw?.meta?.title ?? "Untitled Story"),
+    schema: "versecraft.story.v1"
+  };
+
+  // Canonical export shape for VerseCraft runtime:
+  // { meta, start, scenes: { S01: { text, choices:[{label,to}] } } }
+  const scenesOut = {};
+  const scenes = story.scenes && typeof story.scenes === "object" ? story.scenes : {};
+  for (const [id, node] of Object.entries(scenes)) {
+    const text = String(node?.text ?? "");
+    const opts = Array.isArray(node?.options) ? node.options : [];
+    const choices = opts.map((o) => ({
+      label: String(o?.label ?? "").trim() || "Continue",
+      to: String(o?.to ?? "").trim()
+    }));
+    scenesOut[id] = { text, choices };
+  }
+
+  return {
+    meta,
+    start: String(story.start ?? "S01").trim() || "S01",
+    scenes: scenesOut
+  };
+}
+
+function downloadJsonObject(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+function exportDownload() {
+  const out = buildExportJson();
+  if (!out) {
+    alert("No story loaded to export.");
+    return;
+  }
+  const id = slugifyId(out?.meta?.id ?? "story");
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadJsonObject(out, `${id}_${stamp}.json`);
+}
+
+
 // Wire up UI events
 el.fileInput.addEventListener("change", (e) => {
   const file = e.target.files?.[0];
@@ -327,6 +395,7 @@ el.fileInput.addEventListener("change", (e) => {
 });
 
 el.btnSample.addEventListener("click", () => setStoryFromRaw(sampleStory()));
+if (el.btnExport) el.btnExport.addEventListener("click", () => exportDownload());
 el.btnClear.addEventListener("click", () => clearAll());
 
 ["dragenter", "dragover"].forEach((evt) => {
