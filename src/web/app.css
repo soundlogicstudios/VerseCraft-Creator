@@ -315,11 +315,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
   margin-top: 2px;
 }
 
-/* Lock global page scroll; rely on internal panel scrollers */
-body.vc-lockscroll {
-  overflow: hidden;
-  height: 100vh;
-}
 main.layout {
   height: calc(100vh - 64px - 46px); /* topbar + footer approximations */
   overflow: hidden;
@@ -347,4 +342,39 @@ main.layout {
   .choice-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* Robust panel scrolling: size the main layout using JS-measured viewport/header/footer heights.
+   This avoids iOS Safari issues with 100vh and sticky headers. */
+:root{
+  --vc-vh: 100svh;        /* fallback */
+  --vc-topbar-h: 64px;    /* fallback */
+  --vc-footer-h: 46px;    /* fallback */
+}
+main.layout{
+  height: calc(var(--vc-vh) - var(--vc-topbar-h) - var(--vc-footer-h));
+  overflow: hidden; /* prevent page scroll from stealing gestures */
+}
+.panel{
+  display:flex;
+  flex-direction:column;
+  min-height:0; /* critical for nested overflow */
+}
+.panel .list,
+.panel .detail{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* Left column: make the whole column scroll internally (dropzone + audit) */
+.panel.left{
+  overflow: hidden;
+}
+.panel.left .left-scroll{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
 }

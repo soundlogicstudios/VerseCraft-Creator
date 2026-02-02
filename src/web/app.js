@@ -4,7 +4,7 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.4a";
+const APP_VERSION = "0.1.4b";
 const APP_PHASE = "Phase 1.4";
 
 const $ = (sel) => document.querySelector(sel);
@@ -676,7 +676,27 @@ try {
 } catch (_) {}
 
 // Lock global scroll so panels scroll independently
-try { document.body.classList.add("vc-lockscroll"); } catch (_) {}
+
+function applyLayoutSizing() {
+  try {
+    const vh = window.innerHeight || 0;
+    const topbar = document.querySelector(".topbar");
+    const footer = document.querySelector(".footer");
+    const topH = topbar ? topbar.getBoundingClientRect().height : 64;
+    const footH = footer ? footer.getBoundingClientRect().height : 46;
+
+    document.documentElement.style.setProperty("--vc-vh", `${vh}px`);
+    document.documentElement.style.setProperty("--vc-topbar-h", `${Math.round(topH)}px`);
+    document.documentElement.style.setProperty("--vc-footer-h", `${Math.round(footH)}px`);
+  } catch (_) {}
+}
+
+try {
+  applyLayoutSizing();
+  window.addEventListener("resize", () => applyLayoutSizing(), { passive: true });
+  window.addEventListener("orientationchange", () => setTimeout(applyLayoutSizing, 50), { passive: true });
+} catch (_) {}
+
 
 // Initial render
 clearAll();
