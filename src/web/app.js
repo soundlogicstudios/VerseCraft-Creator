@@ -4,6 +4,9 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
+const APP_VERSION = "0.1.3";
+const APP_PHASE = "Phase 1.3";
+
 const $ = (sel) => document.querySelector(sel);
 
 const el = {
@@ -11,6 +14,7 @@ const el = {
   dropzone: $("#dropzone"),
   btnSample: $("#btnSample"),
   btnExport: $("#btnExport"),
+  btnAddScene: $("#btnAddScene"),
   btnClear: $("#btnClear"),
   summary: $("#summary"),
   issues: $("#issues"),
@@ -208,6 +212,8 @@ function renderSceneDetail() {
       <div class="editor-hd">
         <div class="editor-title">Scene Text</div>
         <div class="editor-actions">
+          <button id="btnAddChoice" class="btn tiny" type="button">Add Choice</button>
+          <button id="btnAddSceneHere" class="btn tiny secondary" type="button">Add Scene</button>
           <button id="btnReaudit" class="btn tiny" type="button">Re-audit</button>
         </div>
       </div>
@@ -242,6 +248,24 @@ function renderSceneDetail() {
       debouncedAudit();
     });
   }
+
+  const btnAddChoice = el.sceneDetail.querySelector("#btnAddChoice");
+  if (btnAddChoice) btnAddChoice.addEventListener("click", () => {
+    addChoiceAndScene();
+    // refresh lists/detail after structural change
+    renderScenesList();
+    renderSceneDetail();
+  });
+
+  const btnAddSceneHere = el.sceneDetail.querySelector("#btnAddSceneHere");
+  if (btnAddSceneHere) btnAddSceneHere.addEventListener("click", () => {
+    const newId = addScene();
+    if (newId) {
+      STATE.activeSceneId = newId;
+      renderScenesList();
+      renderSceneDetail();
+    }
+  });
 
   const btnReaudit = el.sceneDetail.querySelector("#btnReaudit");
   if (btnReaudit) btnReaudit.addEventListener("click", () => updateAuditAndPanels());
@@ -320,6 +344,89 @@ function sampleStory() {
   };
 }
 
+
+
+function parseSceneNumber(id) {
+  const m = String(id ?? "").trim().match(/^S(\d+)$/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatSceneId(n, width = 2) {
+  const s = String(Math.max(0, n));
+  const w = Math.max(width, s.length, 2);
+  return "S" + s.padStart(w, "0");
+}
+
+function nextSceneId(story) {
+  const scenes = story?.scenes && typeof story.scenes === "object" ? story.scenes : {};
+  let maxN = 0;
+  let width = 2;
+
+  for (const id of Object.keys(scenes)) {
+    const m = String(id).match(/^S(\d+)$/i);
+    if (m) width = Math.max(width, m[1].length);
+    const n = parseSceneNumber(id);
+    if (n !== null) maxN = Math.max(maxN, n);
+  }
+  // next sequential
+  let candidate = maxN + 1;
+  // ensure uniqueness even if non-sequential IDs exist
+  while (scenes[formatSceneId(candidate, width)]) candidate++;
+  return formatSceneId(candidate, width);
+}
+
+function ensureStoryLoaded() {
+  if (!STATE.story) {
+    alert("Load a story first.");
+    return false;
+  }
+  return true;
+}
+
+function addScene({ linkFromSceneId = null, linkLabel = "New Choice" } = {}) {
+  if (!ensureStoryLoaded()) return null;
+  const story = STATE.story;
+
+  const newId = nextSceneId(story);
+  story.scenes[newId] = {
+    id: newId,
+    text: "New scene text…",
+    options: [],
+    _raw: null
+  };
+
+  if (linkFromSceneId && story.scenes[linkFromSceneId]) {
+    const src = story.scenes[linkFromSceneId];
+    const opts = Array.isArray(src.options) ? src.options : [];
+    if (opts.length >= 4) {
+      alert("This scene already has 4 choices. Runtime only supports 4 pills.");
+    } else {
+      opts.push({ label: linkLabel, to: newId });
+      src.options = opts;
+    }
+  }
+
+  // If story.start is missing or invalid, set it
+  if (!story.start || !story.scenes[story.start]) {
+    story.start = newId;
+  }
+
+  updateAuditAndPanels();
+  return newId;
+}
+
+function addChoiceAndScene() {
+  if (!ensureStoryLoaded()) return;
+  const from = STATE.activeSceneId;
+  if (!from || !STATE.story.scenes[from]) {
+    alert("Select a scene first.");
+    return;
+  }
+  const newId = addScene({ linkFromSceneId: from, linkLabel: "New Choice" });
+  if (newId) goToScene(newId);
+}
 
 function slugifyId(s) {
   return String(s ?? "")
@@ -417,6 +524,12 @@ el.dropzone.addEventListener("drop", (e) => {
   loadFile(file);
 });
 el.dropzone.addEventListener("click", () => el.fileInput.click());
+
+// Set version/phase label
+try {
+  const metaEl = document.querySelector("#appMeta");
+  if (metaEl) metaEl.textContent = `${APP_PHASE} • v${APP_VERSION}`;
+} catch (_) {}
 
 // Initial render
 clearAll();

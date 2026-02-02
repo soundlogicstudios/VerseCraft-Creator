@@ -247,3 +247,14 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
   color: var(--muted);
   font-size: 12px;
 }
+
+.panel-hd-row{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.btn.tiny.secondary {
+  opacity: 0.9;
+}
