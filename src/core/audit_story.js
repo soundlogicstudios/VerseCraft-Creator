@@ -16,9 +16,6 @@ import { list_scene_ids } from "./normalize_story.js";
  * @property {string=} choice
  */
 
-/**
- * @param {string} s
- */
 function is_nonempty_string(s) {
   return typeof s === "string" && s.trim().length > 0;
 }
@@ -53,7 +50,6 @@ function bfs_reachable(startId, scenes) {
 }
 
 function detect_cycles(scenes, startId) {
-  // Simple DFS cycle detection restricted to reachable graph for signal, not noise.
   const reachable = bfs_reachable(startId, scenes);
   const visited = new Set();
   const stack = new Set();
@@ -71,7 +67,6 @@ function detect_cycles(scenes, startId) {
       if (!visited.has(to)) {
         dfs(to, path.concat([to]));
       } else if (stack.has(to)) {
-        // found a back-edge; record a compact cycle hint
         const idx = path.indexOf(to);
         const cyc = idx >= 0 ? path.slice(idx).concat([to]) : [id, to];
         cycles.push(cyc);
@@ -109,95 +104,56 @@ export function audit_story(story) {
   }
 
   if (is_nonempty_string(story.start) && ids.length > 0 && !scenes[story.start]) {
-    push(
-      issues,
-      "error",
-      "E_START_NOT_FOUND",
-      "`start` does not exist in scenes.",
-      { scene: story.start }
-    );
+    push(issues, "error", "E_START_NOT_FOUND", "`start` does not exist in scenes.", { scene: story.start });
   }
 
-  // Per-scene checks
   for (const id of ids) {
     const node = scenes[id] || {};
     const text = String(node?.text ?? "").trim();
     const opts = Array.isArray(node?.options) ? node.options : [];
 
-    if (!text) {
-      push(issues, "warn", "W_EMPTY_TEXT", "Scene text is empty.", { scene: id });
-    }
+    if (!text) push(issues, "warn", "W_EMPTY_TEXT", "Scene text is empty.", { scene: id });
 
     if (opts.length > 4) {
-      push(
-        issues,
-        "warn",
-        "W_TOO_MANY_CHOICES",
-        `Scene has ${opts.length} choices; runtime renders only the first 4 pills.`,
-        { scene: id }
-      );
+      push(issues, "warn", "W_TOO_MANY_CHOICES",
+        `Scene has ${opts.length} choices; runtime renders only the first 4 pills.`, { scene: id });
     }
 
-    // Dangling / empty targets
     let hasAnyTo = false;
     opts.forEach((opt, idx) => {
       const label = String(opt?.label ?? "").trim();
       const to = String(opt?.to ?? "").trim();
       const choiceRef = `${id}.choice${idx}`;
 
-      if (!label) {
-        push(issues, "warn", "W_EMPTY_CHOICE_LABEL", "Choice label is empty.", { scene: id, choice: choiceRef });
-      }
+      if (!label) push(issues, "warn", "W_EMPTY_CHOICE_LABEL", "Choice label is empty.", { scene: id, choice: choiceRef });
 
       if (to) {
         hasAnyTo = true;
         if (!scenes[to]) {
-          push(
-            issues,
-            "error",
-            "E_DANGLING_TO",
-            `Choice points to missing scene "${to}".`,
-            { scene: id, choice: choiceRef }
-          );
+          push(issues, "error", "E_DANGLING_TO", `Choice points to missing scene "${to}".`, { scene: id, choice: choiceRef });
         }
       }
     });
 
-    // Dead-end heuristic: no "to" targets
-    // (Creators may intentionally use dead ends, but this catches accidents.)
     if (!hasAnyTo) {
-      push(
-        issues,
-        "warn",
-        "W_DEAD_END",
-        "Scene has no choices with targets (`to`). If this is an ending, consider tagging it explicitly in your future schema.",
-        { scene: id }
-      );
+      push(issues, "warn", "W_DEAD_END",
+        "Scene has no choices with targets (`to`). If this is an ending, you can ignore this warning for now.",
+        { scene: id });
     }
   }
 
-  // Reachability
   const startId = String(story.start || "").trim();
   const { reachable, cycles } = detect_cycles(scenes, startId);
 
   if (is_nonempty_string(startId) && scenes[startId]) {
     for (const id of ids) {
-      if (!reachable.has(id)) {
-        push(issues, "warn", "W_UNREACHABLE_SCENE", "Scene is unreachable from `start`.", { scene: id });
-      }
+      if (!reachable.has(id)) push(issues, "warn", "W_UNREACHABLE_SCENE", "Scene is unreachable from `start`.", { scene: id });
     }
   }
 
   if (cycles.length) {
-    // cycles are not inherently bad; flag as info for awareness
     const preview = cycles.slice(0, 3).map((c) => c.join(" -> "));
-    push(
-      issues,
-      "info",
-      "I_CYCLES_DETECTED",
-      `Cycles detected in reachable graph (showing up to 3): ${preview.join(" | ")}`,
-      {}
-    );
+    push(issues, "info", "I_CYCLES_DETECTED", `Cycles detected (up to 3 shown): ${preview.join(" | ")}`);
   }
 
   const summary = {
