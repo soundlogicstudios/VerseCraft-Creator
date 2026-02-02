@@ -202,3 +202,48 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libe
 .choice-btn:hover:not(:disabled) {
   border-color: rgba(255,255,255,0.22);
 }
+
+.editor {
+  margin-top: 12px;
+  background: rgba(0,0,0,0.10);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.editor-hd {
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.editor-title { font-weight: 900; }
+.editor-actions { display:flex; gap:8px; }
+
+.btn.tiny {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.16);
+  color: var(--text);
+  padding: 10px 10px;
+  font: 500 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  outline: none;
+}
+.textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(106,167,255,0.18);
+}
+.editor-foot .hint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}

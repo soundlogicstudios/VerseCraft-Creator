@@ -24,6 +24,14 @@ let STATE = {
   activeSceneId: null,
 };
 
+function debounce(fn, ms) {
+  let t = null;
+  return (...args) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
 function escapeHtml(s) {
   return String(s ?? "")
     .replaceAll("&", "&amp;")
@@ -134,6 +142,13 @@ function goToScene(targetId) {
   try { el.sceneDetail.scrollTop = 0; } catch (_) {}
 }
 
+function updateAuditAndPanels() {
+  if (!STATE.story) return;
+  STATE.audit = audit_story(STATE.story);
+  renderSummary();
+  renderIssues();
+}
+
 function renderSceneDetail() {
   const story = STATE.story;
   const id = STATE.activeSceneId;
@@ -187,9 +202,27 @@ function renderSceneDetail() {
   el.sceneDetail.innerHTML = `
     <div class="sid">${escapeHtml(id)} ${id === story.start ? '<span class="badge info">START</span>' : ""}</div>
     <div class="small">Total choices: ${opts.length} (viewer shows first 4 pills)</div>
-    <div class="text">${escapeHtml(text)}</div>
+
+    <div class="editor">
+      <div class="editor-hd">
+        <div class="editor-title">Scene Text</div>
+        <div class="editor-actions">
+          <button id="btnReaudit" class="btn tiny" type="button">Re-audit</button>
+        </div>
+      </div>
+      <textarea id="sceneTextEditor" class="textarea" spellcheck="true"></textarea>
+      <div class="editor-foot">
+        <div class="hint">Edits update the in-memory story. Export/download comes later (Phase 2).</div>
+      </div>
+    </div>
+
+    <div class="panel-hd" style="margin-top:12px;border-radius:12px;">Choices</div>
     <div class="choices">${choicesHtml}</div>
   `;
+
+  // Set initial textarea value without HTML escaping
+  const ta = el.sceneDetail.querySelector("#sceneTextEditor");
+  if (ta) ta.value = text;
 
   // Bind choice navigation (buttons)
   el.sceneDetail.querySelectorAll(".choice-btn").forEach((btn) => {
@@ -197,6 +230,20 @@ function renderSceneDetail() {
     if (!to) return;
     btn.addEventListener("click", () => goToScene(to));
   });
+
+  // Bind editor: update story text in-place + refresh audit panels (debounced)
+  const debouncedAudit = debounce(() => updateAuditAndPanels(), 200);
+
+  if (ta) {
+    ta.addEventListener("input", () => {
+      // Update normalized story node text
+      story.scenes[id].text = ta.value;
+      debouncedAudit();
+    });
+  }
+
+  const btnReaudit = el.sceneDetail.querySelector("#btnReaudit");
+  if (btnReaudit) btnReaudit.addEventListener("click", () => updateAuditAndPanels());
 }
 
 
