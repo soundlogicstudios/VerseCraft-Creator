@@ -4,7 +4,7 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.6a";
+const APP_VERSION = "0.1.6b";
 const APP_PHASE = "Phase 1.6";
 
 const $ = (sel) => document.querySelector(sel);
@@ -857,12 +857,10 @@ function exportDownload() {
 
 function bindButton(btn, handler) {
   if (!btn) return;
-  // Bind both click and pointerup; some setups can miss click after drag/drop.
-  btn.addEventListener("click", (e) => handler(e));
-  btn.addEventListener("pointerup", (e) => {
+  btn.addEventListener("click", (e) => {
     try { e.preventDefault(); } catch (_) {}
     handler(e);
-  }, { passive: false });
+  });
 }
 
 
