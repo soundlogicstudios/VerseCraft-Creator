@@ -4,8 +4,8 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.5";
-const APP_PHASE = "Phase 1.5";
+const APP_VERSION = "0.1.6";
+const APP_PHASE = "Phase 1.6";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -19,6 +19,10 @@ const el = {
   dropzone: $("#dropzone"),
   btnNewTemplate: $("#btnNewTemplate"),
   btnSample: $("#btnSample"),
+  btnSaveDraft: $("#btnSaveDraft"),
+  btnLoadDraft: $("#btnLoadDraft"),
+  btnClearDraft: $("#btnClearDraft"),
+  draftStatus: $("#draftStatus"),
   btnExport: $("#btnExport"),
   btnAddScene: $("#btnAddScene"),
   btnClear: $("#btnClear"),
@@ -454,6 +458,7 @@ function bindMetaUi() {
     if (el.metaBlurb) m.blurb = toAsciiSafe(el.metaBlurb.value || "");
 
     syncMetaUiFromStory();
+    autosaveDraft();
   };
 
   [el.metaId, el.metaTitle, el.metaRoute, el.metaSchema, el.metaBlurb].forEach((x) => {
@@ -761,6 +766,69 @@ function buildExportJson() {
   };
 }
 
+
+function draftKey(story) {
+  const id = slugifyId(story?.meta?.id ?? "unsaved");
+  return `vcc_draft_${id}`;
+}
+
+function setDraftStatus(text) {
+  try {
+    if (el.draftStatus) el.draftStatus.textContent = text;
+  } catch (_) {}
+}
+
+function nowTimeLabel() {
+  try {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch (_) {
+    return "";
+  }
+}
+
+function safeWriteDraft(story) {
+  if (!story) return;
+  try {
+    ensureMetaDefaults(story);
+    const out = buildExportJson();
+    const key = draftKey(story);
+    const payload = { savedAt: Date.now(), data: out };
+    localStorage.setItem(key, JSON.stringify(payload));
+    setDraftStatus(`Draft: saved ${nowTimeLabel()}`);
+  } catch (e) {
+    console.warn("[creator] draft save failed", e);
+    setDraftStatus("Draft: save failed");
+  }
+}
+
+function safeReadDraftById(metaId) {
+  try {
+    const id = slugifyId(metaId ?? "unsaved");
+    const key = `vcc_draft_${id}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.data || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function safeClearDraftById(metaId) {
+  try {
+    const id = slugifyId(metaId ?? "unsaved");
+    const key = `vcc_draft_${id}`;
+    localStorage.removeItem(key);
+  } catch (_) {}
+}
+
+const autosaveDraft = debounce(() => {
+  if (!STATE.story) return;
+  safeWriteDraft(STATE.story);
+}, 650);
+
+
 function downloadJsonObject(obj, filename) {
   const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -807,7 +875,27 @@ el.fileInput.addEventListener("change", (e) => {
 
 bindButton(el.btnNewTemplate, () => setStoryFromRaw(newStoryTemplate()));
   bindButton(el.btnSample, () => setStoryFromRaw(sampleStory()));
-bindButton(el.btnExport, () => exportDownload());
+bindButton(el.btnSaveDraft, () => {
+    if (!STATE.story) { alert("No story loaded."); return; }
+    safeWriteDraft(STATE.story);
+  });
+  bindButton(el.btnLoadDraft, () => {
+    let id = STATE.story?.meta?.id;
+    if (!id) id = prompt("Meta.id to load draft for:", "unsaved") || "unsaved";
+    const data = safeReadDraftById(id);
+    if (!data) { alert("No draft found for: " + id); return; }
+    setStoryFromRaw(data);
+    setDraftStatus("Draft: loaded " + id);
+  });
+  bindButton(el.btnClearDraft, () => {
+    let id = STATE.story?.meta?.id;
+    if (!id) id = prompt("Meta.id to clear draft for:", "unsaved") || "unsaved";
+    if (!window.confirm("Clear draft for: " + id + "?")) return;
+    safeClearDraftById(id);
+    setDraftStatus("Draft: cleared " + id);
+  });
+
+  bindButton(el.btnExport, () => exportDownload());
 bindButton(el.btnClear, () => clearAll());
 
 ["dragenter", "dragover"].forEach((evt) => {
