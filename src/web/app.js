@@ -4,7 +4,7 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.6";
+const APP_VERSION = "0.1.6a";
 const APP_PHASE = "Phase 1.6";
 
 const $ = (sel) => document.querySelector(sel);
@@ -774,7 +774,8 @@ function draftKey(story) {
 
 function setDraftStatus(text) {
   try {
-    if (el.draftStatus) el.draftStatus.textContent = text;
+    const node = (typeof el !== "undefined" && el && el.draftStatus) ? el.draftStatus : document.getElementById("draftStatus");
+    if (node) node.textContent = text;
   } catch (_) {}
 }
 
@@ -867,6 +868,10 @@ function bindButton(btn, handler) {
 
 // Wire up UI events
 window.addEventListener("DOMContentLoaded", () => {
+  // Refresh draft status node now that DOM is ready
+  try { el.draftStatus = $("#draftStatus"); } catch (_) {}
+  setDraftStatus("Draft: —");
+
 el.fileInput.addEventListener("change", (e) => {
   const file = e.target.files?.[0];
   loadFile(file);
