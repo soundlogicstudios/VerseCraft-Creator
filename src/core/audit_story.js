@@ -85,6 +85,13 @@ function detect_cycles(scenes, startId) {
  * @param {{start:string, scenes: Record<string, any>}} story
  * @returns {{ issues: AuditIssue[], summary: any }}
  */
+const MAX_CYCLES_TO_REPORT = 10;
+
+function isEndingType(node){
+  const t = String(node?.type ?? "").trim().toLowerCase();
+  return t.startsWith("ending");
+}
+
 export function audit_story(story) {
   const issues = [];
   const scenes = story?.scenes && typeof story.scenes === "object" ? story.scenes : {};
@@ -152,7 +159,7 @@ export function audit_story(story) {
   }
 
   if (cycles.length) {
-    const preview = cycles.slice(0, 3).map((c) => c.join(" -> "));
+    const preview = cycles.slice(0, MAX_CYCLES_TO_REPORT).map((c) => c.join(" -> "));
     push(issues, "info", "I_CYCLES_DETECTED", `Cycles detected (up to 3 shown): ${preview.join(" | ")}`);
   }
 
