@@ -4,8 +4,8 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.6b";
-const APP_PHASE = "Phase 1.6";
+const APP_VERSION = "0.1.7";
+const APP_PHASE = "Phase 1.7";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -23,6 +23,10 @@ const el = {
   btnLoadDraft: $("#btnLoadDraft"),
   btnClearDraft: $("#btnClearDraft"),
   draftStatus: $("#draftStatus"),
+  draftModalBackdrop: $("#draftModalBackdrop"),
+  btnDraftModalClose: $("#btnDraftModalClose"),
+  draftList: $("#draftList"),
+  draftEmpty: $("#draftEmpty"),
   btnExport: $("#btnExport"),
   btnAddScene: $("#btnAddScene"),
   btnClear: $("#btnClear"),
@@ -803,6 +807,144 @@ function safeWriteDraft(story) {
   }
 }
 
+
+function formatDateTime(ts) {
+  try {
+    const d = new Date(ts || 0);
+    return d.toLocaleString([], { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch (_) {
+    return "";
+  }
+}
+
+function listDrafts() {
+  const out = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith("vcc_draft_")) continue;
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
+      const data = parsed?.data || null;
+      const savedAt = Number(parsed?.savedAt || 0);
+      const id = String(k.replace(/^vcc_draft_/, "") || "");
+      const title = String(data?.meta?.title || "Untitled Story");
+      const route = String(data?.meta?.route || "");
+      out.push({ key: k, id, title, route, savedAt, data });
+    }
+  } catch (_) {}
+  out.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  return out;
+}
+
+function openDraftModal() {
+  const backdrop = el.draftModalBackdrop || document.getElementById("draftModalBackdrop");
+  if (!backdrop) return;
+
+  renderDraftList();
+  backdrop.classList.add("is-open");
+  backdrop.setAttribute("aria-hidden", "false");
+}
+
+function closeDraftModal() {
+  const backdrop = el.draftModalBackdrop || document.getElementById("draftModalBackdrop");
+  if (!backdrop) return;
+  backdrop.classList.remove("is-open");
+  backdrop.setAttribute("aria-hidden", "true");
+}
+
+function renderDraftList() {
+  const listNode = el.draftList || document.getElementById("draftList");
+  const emptyNode = el.draftEmpty || document.getElementById("draftEmpty");
+  if (!listNode) return;
+
+  const drafts = listDrafts();
+  listNode.innerHTML = "";
+
+  if (emptyNode) emptyNode.style.display = drafts.length ? "none" : "block";
+  if (!drafts.length) return;
+
+  for (const d of drafts) {
+    const row = document.createElement("div");
+    row.className = "draft-row";
+
+    const meta = document.createElement("div");
+    meta.className = "draft-meta";
+
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = `${d.title} (${d.id})`;
+
+    const sub = document.createElement("div");
+    sub.className = "sub";
+    const parts = [];
+    if (d.route) parts.push(d.route);
+    if (d.savedAt) parts.push("saved " + formatDateTime(d.savedAt));
+    sub.textContent = parts.join(" • ");
+
+    meta.appendChild(name);
+    meta.appendChild(sub);
+
+    const actions = document.createElement("div");
+    actions.className = "draft-actions";
+
+    const btnLoad = document.createElement("button");
+    btnLoad.type = "button";
+    btnLoad.className = "btn";
+    btnLoad.textContent = "Load";
+    btnLoad.addEventListener("click", () => {
+      if (!d.data) return;
+      setStoryFromRaw(d.data);
+      setDraftStatus(`Draft: loaded ${d.id}`);
+      closeDraftModal();
+    });
+
+    const btnDelete = document.createElement("button");
+    btnDelete.type = "button";
+    btnDelete.className = "btn secondary";
+    btnDelete.textContent = "Delete";
+    btnDelete.addEventListener("click", () => {
+      if (!window.confirm(`Delete draft "${d.title}" (${d.id})?`)) return;
+      try { localStorage.removeItem(d.key); } catch (_) {}
+      renderDraftList();
+      setDraftStatus("Draft: —");
+  // Draft modal behaviors
+  try {
+    el.draftModalBackdrop = $("#draftModalBackdrop");
+    el.btnDraftModalClose = $("#btnDraftModalClose");
+    el.draftList = $("#draftList");
+    el.draftEmpty = $("#draftEmpty");
+  } catch (_) {}
+
+  if (el.btnDraftModalClose) bindButton(el.btnDraftModalClose, () => closeDraftModal());
+
+  // Click outside modal closes
+  const backdrop = el.draftModalBackdrop || document.getElementById("draftModalBackdrop");
+  if (backdrop) {
+    backdrop.addEventListener("click", (e) => {
+      if (e && e.target === backdrop) closeDraftModal();
+    });
+  }
+
+  // Esc closes
+  window.addEventListener("keydown", (e) => {
+    if (e && e.key === "Escape") closeDraftModal();
+  });
+
+    });
+
+    actions.appendChild(btnLoad);
+    actions.appendChild(btnDelete);
+
+    row.appendChild(meta);
+    row.appendChild(actions);
+    listNode.appendChild(row);
+  }
+}
+
+
 function safeReadDraftById(metaId) {
   try {
     const id = slugifyId(metaId ?? "unsaved");
@@ -882,14 +1024,7 @@ bindButton(el.btnSaveDraft, () => {
     if (!STATE.story) { alert("No story loaded."); return; }
     safeWriteDraft(STATE.story);
   });
-  bindButton(el.btnLoadDraft, () => {
-    let id = STATE.story?.meta?.id;
-    if (!id) id = prompt("Meta.id to load draft for:", "unsaved") || "unsaved";
-    const data = safeReadDraftById(id);
-    if (!data) { alert("No draft found for: " + id); return; }
-    setStoryFromRaw(data);
-    setDraftStatus("Draft: loaded " + id);
-  });
+  bindButton(el.btnLoadDraft, () => openDraftModal());
   bindButton(el.btnClearDraft, () => {
     let id = STATE.story?.meta?.id;
     if (!id) id = prompt("Meta.id to clear draft for:", "unsaved") || "unsaved";
