@@ -4,7 +4,7 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.8";
+const APP_VERSION = "0.1.8a";
 const APP_PHASE = "Phase 1.8";
 
 const $ = (sel) => document.querySelector(sel);
@@ -255,6 +255,28 @@ function renderSceneDetail() {
         </div>
       </div>
       <textarea id="sceneTextEditor" class="textarea" spellcheck="true"></textarea>
+      <div class="scene-meta">
+        <div>
+          <div class="slot">Creator Note</div>
+          <textarea id="sceneNote" class="textarea" rows="3" placeholder="Side notes: skill checks, branching intent, planned stat/flag changes..."></textarea>
+          <div class="small-hint">Not used by runtime. For creators only.</div>
+        </div>
+        <div>
+          <div class="slot">Tags</div>
+          <div class="tag-input-row">
+            <input id="tagInput" class="input" type="text" placeholder="Type tag and press Enter (e.g. damage, skillcheck_jump)" />
+            <button id="btnAddTag" type="button" class="btn secondary">Add</button>
+          </div>
+          <div id="tagChips" class="tag-chips"></div>
+        </div>
+        <div>
+          <div class="slot">Planned Effects (JSON)</div>
+          <textarea id="effectsJson" class="textarea" rows="5" placeholder='{"damage":10,"flags_set":["chasm_crossed"]}'></textarea>
+          <div id="effectsError" class="small-hint" style="display:none; color:#ffb4b4;"></div>
+          <div class="small-hint">Stored with the scene now; runtime ignores until Phase 2.</div>
+        </div>
+      </div>
+
       <div class="editor-foot">
         <div class="hint">Edits update the in-memory story. Use “Download JSON” to export.</div>
       </div>
