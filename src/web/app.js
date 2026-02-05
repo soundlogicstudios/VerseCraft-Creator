@@ -4,7 +4,7 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.8a";
+const APP_VERSION = "0.1.8b";
 const APP_PHASE = "Phase 1.8";
 
 const $ = (sel) => document.querySelector(sel);
@@ -255,10 +255,7 @@ function renderSceneDetail() {
         </div>
       </div>
       <textarea id="sceneTextEditor" class="textarea" spellcheck="true"></textarea>
-      <div class="scene-meta">
-        <div>
-          <div class="slot">Creator Note</div>
-          <textarea id="sceneNote" class="textarea" rows="3" placeholder="Side notes: skill checks, branching intent, planned stat/flag changes..."></textarea>
+<textarea id="sceneNote" class="textarea" rows="3" placeholder="Side notes: skill checks, branching intent, planned stat/flag changes..."></textarea>
           <div class="small-hint">Not used by runtime. For creators only.</div>
         </div>
         <div>
@@ -287,7 +284,11 @@ function renderSceneDetail() {
       ${choiceRowsHtml}
       <div class="muted" style="font-size:12px;">Tip: Select “+ Create New Scene…” to auto-create and link a new target.</div>
     </div>
-  `;
+
+      <div class="scene-meta">
+        <div>
+          <div class="slot">Creator Note</div>
+            `;
 
   // Set initial textarea value
   const ta = el.sceneDetail.querySelector("#sceneTextEditor");
