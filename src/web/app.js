@@ -4,8 +4,8 @@
 import { normalize_story, list_scene_ids } from "../core/normalize_story.js";
 import { audit_story } from "../core/audit_story.js";
 
-const APP_VERSION = "0.1.7";
-const APP_PHASE = "Phase 1.7";
+const APP_VERSION = "0.1.8";
+const APP_PHASE = "Phase 1.8";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -270,6 +270,86 @@ function renderSceneDetail() {
   // Set initial textarea value
   const ta = el.sceneDetail.querySelector("#sceneTextEditor");
   if (ta) ta.value = text;
+  // Creator note binding
+  const noteEl = el.sceneDetail.querySelector("#sceneNote");
+  if (noteEl) {
+    noteEl.value = String(story.scenes[id].creator_note ?? "");
+    noteEl.addEventListener("input", debounce(() => {
+      story.scenes[id].creator_note = String(noteEl.value || "");
+      updateAuditAndPanels();
+    }, 180));
+  }
+
+  // Tags UI
+  const chips = el.sceneDetail.querySelector("#tagChips");
+  const tagInput = el.sceneDetail.querySelector("#tagInput");
+  const btnAddTag = el.sceneDetail.querySelector("#btnAddTag");
+
+  function renderChips() {
+    if (!chips) return;
+    const tags = normalizeTags(story.scenes[id].tags || []);
+    story.scenes[id].tags = tags;
+    chips.innerHTML = "";
+    for (const t of tags) {
+      const chip = document.createElement("div");
+      chip.className = "tag-chip";
+      const span = document.createElement("span");
+      span.textContent = t;
+      const x = document.createElement("button");
+      x.type = "button";
+      x.textContent = "×";
+      x.addEventListener("click", () => {
+        story.scenes[id].tags = (story.scenes[id].tags || []).filter((v)=>String(v||"").trim().toLowerCase() !== t.toLowerCase());
+        renderChips();
+        updateAuditAndPanels();
+      });
+      chip.appendChild(span);
+      chip.appendChild(x);
+      chips.appendChild(chip);
+    }
+  }
+
+  function addTagFromInput() {
+    if (!tagInput) return;
+    const val = String(tagInput.value || "").trim();
+    if (!val) return;
+    story.scenes[id].tags = normalizeTags([...(story.scenes[id].tags || []), val]);
+    tagInput.value = "";
+    renderChips();
+    updateAuditAndPanels();
+  }
+
+  if (tagInput) {
+    tagInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addTagFromInput();
+      }
+    });
+  }
+  if (btnAddTag) btnAddTag.addEventListener("click", (e) => { try{e.preventDefault();}catch(_){ } addTagFromInput(); });
+
+  renderChips();
+
+  // Effects JSON binding
+  const effectsTa = el.sceneDetail.querySelector("#effectsJson");
+  const effectsErr = el.sceneDetail.querySelector("#effectsError");
+  if (effectsTa) {
+    const cur = story.scenes[id].effects;
+    effectsTa.value = cur && typeof cur === "object" ? JSON.stringify(cur, null, 2) : "";
+    const apply = debounce(() => {
+      const parsed = safeParseJsonObject(effectsTa.value);
+      if (!parsed.ok) {
+        if (effectsErr) { effectsErr.style.display = "block"; effectsErr.textContent = parsed.error; }
+        return;
+      }
+      if (effectsErr) { effectsErr.style.display = "none"; effectsErr.textContent = ""; }
+      story.scenes[id].effects = parsed.value;
+      updateAuditAndPanels();
+    }, 220);
+    effectsTa.addEventListener("input", apply);
+  }
+
 
   // Debounced audit refresh
   const debouncedAudit = debounce(() => updateAuditAndPanels(), 200);
@@ -485,24 +565,36 @@ function newStoryTemplate() {
         ? `**${title}**\n\nWrite your opening scene here.\n\n**CHOICES**\n\nFIRST CHOICE — ...\n\nSECOND CHOICE — ...`
         : `Scene ${sid} text...\n\n**CHOICES**\n\nFIRST CHOICE — ...\n\nSECOND CHOICE — ...`,
       choices: [],
-      type: "normal"
+      type: "normal",
+      creator_note: "",
+      tags: [],
+      effects: null
     };
   }
 
   scenes["S11"] = {
     text: "Ending (Normal)\n\nWrap up this path.\n\n**CHOICES**\n\nRESTART — Return to the beginning.",
     choices: [{ label: "Restart", to: "S01" }],
-    type: "ending"
+    type: "ending",
+    creator_note: "",
+    tags: [],
+    effects: null
   };
   scenes["S12"] = {
     text: "Ending (Special)\n\nA rarer outcome.\n\n**CHOICES**\n\nRESTART — Return to the beginning.",
     choices: [{ label: "Restart", to: "S01" }],
-    type: "ending_special"
+    type: "ending_special",
+    creator_note: "",
+    tags: [],
+    effects: null
   };
   scenes["S13"] = {
     text: "Ending (Bad)\n\nA grim conclusion.\n\n**CHOICES**\n\nRESTART — Return to the beginning.",
     choices: [{ label: "Restart", to: "S01" }],
-    type: "ending_bad"
+    type: "ending_bad",
+    creator_note: "",
+    tags: [],
+    effects: null
   };
 
   scenes["S01"].choices = [
@@ -732,6 +824,34 @@ function slugifyId(s) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "") || "story";
+}
+
+
+function normalizeTags(input) {
+  const arr = Array.isArray(input) ? input : [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of arr) {
+    const t = String(raw || "").trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+
+function safeParseJsonObject(text) {
+  const s = String(text ?? "").trim();
+  if (!s) return { ok: true, value: null };
+  try {
+    const v = JSON.parse(s);
+    if (v && typeof v === "object" && !Array.isArray(v)) return { ok: true, value: v };
+    return { ok: false, error: "Effects must be a JSON object." };
+  } catch (e) {
+    return { ok: false, error: "Invalid JSON." };
+  }
 }
 
 function buildExportJson() {
